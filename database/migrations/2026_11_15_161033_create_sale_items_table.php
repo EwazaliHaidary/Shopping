@@ -17,6 +17,8 @@ return new class extends Migration
             $table->decimal('subtotal', 10, 2)->required();
             $table->timestamps();
         });
+
+        
     }
 
     /**
