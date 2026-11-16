@@ -4,8 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use App\Models\Sale;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 class Customer extends Model
 {
+    use HasFactory;
     protected $fillable =[
         "name",
         "email",

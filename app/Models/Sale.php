@@ -6,8 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use App\Models\User;
 use App\Models\Customer;
 use App\Models\SaleItem;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+
 class Sale extends Model
 {
+    use HasFactory;
     protected $fillable = [
             "user_id",
             "customer_id",
