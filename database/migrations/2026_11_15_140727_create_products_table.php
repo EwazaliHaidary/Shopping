@@ -18,8 +18,8 @@ return new class extends Migration
             $table->string('name');
             $table->string('sku')->required()->unique();
             $table->text('description')->nullable();
-            $table->decimal('purchase_price', 10, 2)->required();
-            $table->decimal('sale_price', 10, 2)->required();
+            $table->decimal('purchase_price', 10, 2);
+            $table->decimal('sale_price', 10, 2);
             $table->unsignedInteger('stock')->default(0);
             $table->unsignedInteger('alert_quantity')->default(0);
             $table->boolean("is_active")->default(true);
