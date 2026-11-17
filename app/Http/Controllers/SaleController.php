@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreSaleRequest;
 use App\Http\Requests\UpdateSaleRequest;
+use App\Http\Resources\SaleResource;
 use App\Models\Sale;
 use App\Models\Product;
 use Illuminate\Support\Facades\DB;
@@ -14,9 +15,9 @@ class SaleController extends Controller
     public function index()
     {
         $sales = Sale::with(['customer', 'user', 'sales_items.product'])->get();
-
+        $resource = SaleResource::collection($sales);
         return response()->json([
-            "data" => $sales
+            "data" => $resource
         ]);
     }
 
@@ -93,10 +94,8 @@ class SaleController extends Controller
     {
         $sale = Sale::with(['customer', 'user', 'sales_items.product'])
             ->findOrFail($id);
-
-        return response()->json([
-            "data" => $sale
-        ]);
+        return  new SaleResource($sale);
+        
     }
 
     // Update an existing sale
