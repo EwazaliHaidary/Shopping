@@ -8,14 +8,22 @@ use App\Http\Controllers\SaleItemController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+// Authenticated user
 Route::get('/user', function (Request $request) {
-    
     return $request->user();
 })->middleware('auth:sanctum');
 
+// Public routes
 Route::apiResource("categories", CategoryController::class);
 Route::apiResource("products", ProductController::class);
 Route::apiResource("customers", CustomerController::class);
-Route::apiResource("sales", SaleController::class );
-Route::get("/saleItems", [SaleItemController::class, "index"]);
-Route::get("/saleItems/{id}", [SaleItemController::class, "show"]);
+
+// Protected routes
+Route::middleware('auth:sanctum')->group(function () {
+
+    Route::apiResource("sales", SaleController::class);
+
+    Route::get("/saleItems", [SaleItemController::class, "index"]);
+    Route::get("/saleItems/{id}", [SaleItemController::class, "show"]);
+
+});

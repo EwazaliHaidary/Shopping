@@ -7,23 +7,23 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 class SaleItemResource extends JsonResource
 {
-    /**
-     * Transform the resource into an array.
-     *
-     * @return array<string, mixed>
-     */
     public function toArray(Request $request): array
     {
         return [
-            "product_id" =>$this->product_id,
-            "sale_id" =>$this->sale_id,
+            "id" => $this->id,
+            "sale_id" => $this->sale_id,
+            "product_id" => $this->product_id,
             "quantity" => $this->quantity,
-            "unit_price" =>$this->unit_price,
+            "unit_price" => $this->unit_price,
             "subtotal" => $this->subtotal,
-            "product" => $this->whenLoaded("product", function(){
-                return $this->product->name;
-            })
-          
+
+            "product" => $this->whenLoaded("product", function () {
+                return [
+                    "id" => $this->product->id,
+                    "name" => $this->product->name,
+                    "sku" => $this->product->sku,
+                ];
+            }),
         ];
     }
 }

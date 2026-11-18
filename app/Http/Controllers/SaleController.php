@@ -14,11 +14,13 @@ class SaleController extends Controller
     // Display all sales
     public function index()
     {
-        $sales = Sale::with(['customer', 'user', 'sales_items.product'])->get();
-        $resource = SaleResource::collection($sales);
-        return response()->json([
-            "data" => $resource
-        ]);
+        $sales = Sale::with([
+            'customer',
+            'user',
+            'sales_items.product'
+        ])->get();
+
+        return SaleResource::collection($sales);
     }
 
     // Store a new sale
@@ -31,15 +33,28 @@ class SaleController extends Controller
             $totalPrice = 0;
             $itemsData = [];
 
-            foreach ($data['items'] as $item) {
+            // Group duplicate products and calculate total quantities
+            $quantities = collect($data['items'])
+                ->groupBy('product_id')
+                ->map(function ($items) {
+                    return $items->sum('quantity');
+                });
 
-                $product = Product::whereKey($item['product_id'])
+            foreach ($quantities as $productId => $quantity) {
+
+                $product = Product::whereKey($productId)
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                if ($product->stock < $item['quantity']) {
+                if ($product->stock < $quantity) {
                     abort(422, "موجودی محصول {$product->name} کافی نیست");
                 }
+            }
+
+            // Calculate sale items
+            foreach ($data['items'] as $item) {
+
+                $product = Product::findOrFail($item['product_id']);
 
                 $unitPrice = $product->sale_price;
                 $subtotal = $unitPrice * $item['quantity'];
@@ -60,6 +75,7 @@ class SaleController extends Controller
                 abort(422, "تخفیف نمی‌تواند بیشتر از مجموع قیمت باشد");
             }
 
+            // Create sale
             $sale = Sale::create([
                 "user_id" => auth()->id(),
                 "customer_id" => $data['customer_id'],
@@ -70,6 +86,7 @@ class SaleController extends Controller
                 "notes" => $data['notes'] ?? null,
             ]);
 
+            // Create sale items and decrease stock
             foreach ($itemsData as $item) {
 
                 $sale->sales_items()->create([
@@ -79,12 +96,21 @@ class SaleController extends Controller
                     "subtotal" => $item['subtotal'],
                 ]);
 
-                $item['product']->decrement('stock', $item['quantity']);
+                $item['product']->decrement(
+                    'stock',
+                    $item['quantity']
+                );
             }
+
+            $sale->load([
+                'customer',
+                'user',
+                'sales_items.product'
+            ]);
 
             return response()->json([
                 "message" => "فروش موفقانه ثبت شد",
-                "data" => $sale->load(['customer', 'user', 'sales_items.product'])
+                "data" => new SaleResource($sale)
             ], 201);
         });
     }
@@ -92,10 +118,13 @@ class SaleController extends Controller
     // Display one sale
     public function show(string $id)
     {
-        $sale = Sale::with(['customer', 'user', 'sales_items.product'])
-            ->findOrFail($id);
-        return  new SaleResource($sale);
-        
+        $sale = Sale::with([
+            'customer',
+            'user',
+            'sales_items.product'
+        ])->findOrFail($id);
+
+        return new SaleResource($sale);
     }
 
     // Update an existing sale
@@ -119,21 +148,35 @@ class SaleController extends Controller
                     );
                 }
 
-                // Remove old sale items
+                // Delete old sale items
                 $sale->sales_items()->delete();
 
                 $totalPrice = 0;
                 $itemsData = [];
 
-                foreach ($data['items'] as $item) {
+                // Group duplicate products
+                $quantities = collect($data['items'])
+                    ->groupBy('product_id')
+                    ->map(function ($items) {
+                        return $items->sum('quantity');
+                    });
 
-                    $product = Product::whereKey($item['product_id'])
+                // Check available stock
+                foreach ($quantities as $productId => $quantity) {
+
+                    $product = Product::whereKey($productId)
                         ->lockForUpdate()
                         ->firstOrFail();
 
-                    if ($product->stock < $item['quantity']) {
+                    if ($product->stock < $quantity) {
                         abort(422, "موجودی محصول {$product->name} کافی نیست");
                     }
+                }
+
+                // Calculate new sale items
+                foreach ($data['items'] as $item) {
+
+                    $product = Product::findOrFail($item['product_id']);
 
                     $unitPrice = $product->sale_price;
                     $subtotal = $unitPrice * $item['quantity'];
@@ -148,6 +191,7 @@ class SaleController extends Controller
                     ];
                 }
 
+                // Create new sale items and decrease stock
                 foreach ($itemsData as $item) {
 
                     $sale->sales_items()->create([
@@ -157,10 +201,14 @@ class SaleController extends Controller
                         "subtotal" => $item['subtotal'],
                     ]);
 
-                    $item['product']->decrement('stock', $item['quantity']);
+                    $item['product']->decrement(
+                        'stock',
+                        $item['quantity']
+                    );
                 }
 
                 $sale->total_price = $totalPrice;
+
             } else {
                 $totalPrice = $sale->total_price;
             }
@@ -174,14 +222,23 @@ class SaleController extends Controller
             $sale->customer_id = $data['customer_id'] ?? $sale->customer_id;
             $sale->discount = $discount;
             $sale->final_price = $totalPrice - $discount;
-            $sale->notes = $data['notes'] ?? $sale->notes;
+
+            if (array_key_exists('notes', $data)) {
+                $sale->notes = $data['notes'];
+            }
 
             $sale->save();
 
+            $sale->load([
+                'customer',
+                'user',
+                'sales_items.product'
+            ]);
+
             return response()->json([
                 "message" => "فروش موفقانه ویرایش شد",
-                "data" => $sale->load(['customer', 'user', 'sales_items.product'])
-            ]);
+                "data" => new SaleResource($sale)
+            ], 200);
         });
     }
 
@@ -196,14 +253,17 @@ class SaleController extends Controller
 
             // Restore product quantities
             foreach ($sale->sales_items as $item) {
-                $item->product()->increment('stock', $item->quantity);
+                $item->product()->increment(
+                    'stock',
+                    $item->quantity
+                );
             }
 
             $sale->delete();
 
             return response()->json([
                 "message" => "فروش موفقانه حذف شد"
-            ]);
+            ], 200);
         });
     }
 }
