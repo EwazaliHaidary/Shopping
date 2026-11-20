@@ -12,6 +12,7 @@ use Illuminate\Support\Str;
  */
 class UserFactory extends Factory
 {
+    protected static ?string $password = null;
 
     public function definition(): array
     {
@@ -21,13 +22,18 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
-            'role' =>fake()->randomElement(['employee', 'admin'])
+            'role' => 'employee',
         ];
     }
 
-    /**
-     * Indicate that the model's email address should be unverified.
-     */
+    // Create an admin user
+    public function admin(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => 'admin',
+        ]);
+    }
+
     public function unverified(): static
     {
         return $this->state(fn (array $attributes) => [

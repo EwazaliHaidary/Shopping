@@ -6,13 +6,31 @@ use App\Http\Requests\StoreCustomerRequest;
 use App\Http\Requests\UpdateCustomerRequest;
 use App\Http\Resources\CustomerResource;
 use App\Models\Customer;
+use Illuminate\Http\Request;
 
 class CustomerController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $customers = Customer::all();
+        $query = Customer::query();
+        $query->when($request->query('name'),function ($q, $name) {
+            $q->where('name', 'like', "%{$name}%");
+        });
 
+        $query->when($request->query('phone'), function ($q, $phone) {
+            $q->where('phone', 'like', "%{$phone}%");
+        });
+
+          // Searching
+    $query->when($request->query('search'), function ($q, $search) {
+        $q->where(function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('email', 'like', "%{$search}%")
+              ->orWhere('phone', 'like', "%{$search}%");
+            });
+        });
+        
+        $customers = $query->paginate(10);
         return CustomerResource::collection($customers);
     }
 

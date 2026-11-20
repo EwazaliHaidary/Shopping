@@ -7,18 +7,31 @@ use App\Http\Requests\UpdateSaleRequest;
 use App\Http\Resources\SaleResource;
 use App\Models\Sale;
 use App\Models\Product;
+use Illuminate\Auth\Middleware\Authorize;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+
 
 class SaleController extends Controller
 {
     // Display all sales
-    public function index()
+    public function index(Request $request)
     {
-        $sales = Sale::with([
+        // Check permission
+        $this->authorize('viewAny', Sale::class);
+
+        // Get only current user's sales
+        $query = Sale::with([
             'customer',
             'user',
             'sales_items.product'
-        ])->get();
+        ])->where('user_id', $request->user()->id);
+
+        $query->when($request->query('customer_id'), function ($q, $customerId) {
+            $q->where('customer_id', $customerId);
+        });
+
+        $sales = $query->get();
 
         return SaleResource::collection($sales);
     }
@@ -26,6 +39,9 @@ class SaleController extends Controller
     // Store a new sale
     public function store(StoreSaleRequest $request)
     {
+        // Check permission
+        $this->authorize('create', Sale::class);
+
         $data = $request->validated();
 
         return DB::transaction(function () use ($data) {
@@ -33,13 +49,14 @@ class SaleController extends Controller
             $totalPrice = 0;
             $itemsData = [];
 
-            // Group duplicate products and calculate total quantities
+            // Group duplicate products
             $quantities = collect($data['items'])
                 ->groupBy('product_id')
                 ->map(function ($items) {
                     return $items->sum('quantity');
                 });
 
+            // Check available stock
             foreach ($quantities as $productId => $quantity) {
 
                 $product = Product::whereKey($productId)
@@ -124,6 +141,9 @@ class SaleController extends Controller
             'sales_items.product'
         ])->findOrFail($id);
 
+        // Check permission
+        $this->authorize('view', $sale);
+
         return new SaleResource($sale);
     }
 
@@ -137,6 +157,9 @@ class SaleController extends Controller
             $sale = Sale::with('sales_items.product')
                 ->lockForUpdate()
                 ->findOrFail($id);
+
+            // Check permission
+            $this->authorize('update', $sale);
 
             if (isset($data['items'])) {
 
@@ -251,6 +274,8 @@ class SaleController extends Controller
                 ->lockForUpdate()
                 ->findOrFail($id);
 
+            // Check permission
+            $this->authorize('delete', $sale);
             // Restore product quantities
             foreach ($sale->sales_items as $item) {
                 $item->product()->increment(
@@ -260,10 +285,19 @@ class SaleController extends Controller
             }
 
             $sale->delete();
-
             return response()->json([
                 "message" => "فروش موفقانه حذف شد"
             ], 200);
         });
+    }
+
+
+    public function adminDashboard()
+    {
+        $this->authorize('access-admin-panel');
+
+        return response()->json([
+            'message' => 'Welcome to Admin Panel'
+        ]);
     }
 }
